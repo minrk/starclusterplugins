@@ -48,6 +48,9 @@ class IPClusterSetup(ClusterSetup):
         f.write('\n'.join([
             "c = get_config()",
             "c.EngineFactory.timeout = 10",
+            # Engines should wait a while for url files to arrive,
+            # in case Controller takes a bit to start:
+            "c.IPEngineApp.wait_for_url_file = 30",
             "c.Application.log_level = 'DEBUG'",
             "",
         ]))
@@ -58,18 +61,16 @@ class IPClusterSetup(ClusterSetup):
     
     def _start_cluster(self, master, user, n, profile_dir):
         log.info("Starting IPython cluster with %i engines"%n)
-        # cleanup existing connection files:
+        # cleanup existing connection files, to prevent their use
         user_ssh(master, user, "rm -f %s/security/*.json"%profile_dir)
-        # 15 second delay prevents engines starting before connector
-        # files exist
         user_ssh(master, user, """source /etc/profile;
-        ipcluster start n=%i delay=15 --daemonize
+        ipcluster start n=%i delay=10 --daemonize
         """%n
         )
         
         # wait for JSON file to exist
-        time.sleep(2)
         json = '%s/security/ipcontroller-client.json'%profile_dir
+        time.sleep(2)
         while not master.ssh.isfile(json):
             log.info("waiting for JSON connector file...")
             time.sleep(1)
