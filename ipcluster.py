@@ -60,8 +60,10 @@ class IPClusterSetup(ClusterSetup):
         log.info("Starting IPython cluster with %i engines"%n)
         # cleanup existing connection files:
         user_ssh(master, user, "rm -f %s/security/*.json"%profile_dir)
+        # 15 second delay prevents engines starting before connector
+        # files exist
         user_ssh(master, user, """source /etc/profile;
-        ipcluster start n=%i delay=10 --daemonize
+        ipcluster start n=%i delay=15 --daemonize
         """%n
         )
         
@@ -90,14 +92,11 @@ class IPClusterSetup(ClusterSetup):
     
     def _stop_cluster(self, master, user):
         user_ssh(master, user, "ipcluster stop")
-        user_ssh(master, user, "pkill ipengine")
-        user_ssh(master, user, "pkill ipcontroller")
+        user_ssh(master, user, "pkill -f ipengineapp.py")
+        user_ssh(master, user, "pkill -f ipcontrollerapp.py")
     
     def on_add_node(self, node, nodes, master, user, user_shell, volumes):
         n = node.num_processors
         log.info("Adding %i engines on %s to ipcluster" % (n, node.alias))
-        # user_ssh(node, user, "ipcluster engines n=%i --daemonize" % n)
-    
-    def on_remove_node(self, node, nodes, master, user, user_shell, volumes):
-        log.info("Removing %s from ipcluster" % node.alias)
-        node.ssh.execute('pkill ipengine')
+        user_ssh(node, user, "source /etc/profile; ipcluster engines n=%i --daemonize" % n)
+
