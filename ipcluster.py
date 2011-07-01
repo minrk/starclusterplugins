@@ -10,7 +10,8 @@ from starcluster.clustersetup import ClusterSetup
 from starcluster.logger import log
 
 def user_ssh(node, user, cmd):
-    return node.ssh.execute("su - %s -c '%s'"%(user, cmd))
+    """run code as user, from user's home"""
+    return node.ssh.execute("su - %s -c 'cd && %s'"%(user, cmd))
 
 class IPClusterSetup(ClusterSetup):
     """Start an IPython cluster (IPython 0.11)
@@ -27,7 +28,7 @@ class IPClusterSetup(ClusterSetup):
             "c = get_config()",
             "c.HubFactory.ip='%s'"%master.private_ip_address,
             "c.IPControllerApp.ssh_server='%s'"%master.public_dns_name,
-            "c.Application.log_level = 'DEBUG'",
+            # "c.Application.log_level = 'DEBUG'",
             "",
         ]))
         f.close()
@@ -39,7 +40,7 @@ class IPClusterSetup(ClusterSetup):
             # restrict controller to master node:
             "c.SGEControllerLauncher.queue='all.q@master'",
             "c.IPClusterEngines.engine_launcher_class='SGEEngineSetLauncher'",
-            "c.Application.log_level = 'DEBUG'",
+            # "c.Application.log_level = 'DEBUG'",
             "",
         ]))
         f.close()
@@ -51,7 +52,27 @@ class IPClusterSetup(ClusterSetup):
             # Engines should wait a while for url files to arrive,
             # in case Controller takes a bit to start:
             "c.IPEngineApp.wait_for_url_file = 30",
-            "c.Application.log_level = 'DEBUG'",
+            # "c.Application.log_level = 'DEBUG'",
+            "",
+        ]))
+        f.close()
+        f = master.ssh.remote_file('%s/ipython_config.py'%profile_dir)
+        f.write('\n'.join([
+            "c = get_config()",
+            "try:",
+            "    import msgpack",
+            "except ImportError:",
+            # use pickle if msgpack is unavailable
+            "    c.Session.packer='pickle'",
+            "else:",
+            # use msgpack if we can, because it's fast
+            "    c.Session.packer='msgpack.packb'",
+            "    c.Session.unpacker='msgpack.unpackb'",
+            "c.EngineFactory.timeout = 10",
+            # Engines should wait a while for url files to arrive,
+            # in case Controller takes a bit to start via SGE
+            "c.IPEngineApp.wait_for_url_file = 30",
+            # "c.Application.log_level = 'DEBUG'",
             "",
         ]))
         f.close()
@@ -92,7 +113,6 @@ class IPClusterSetup(ClusterSetup):
         )
     
     def _stop_cluster(self, master, user):
-        user_ssh(master, user, "ipcluster stop")
         user_ssh(master, user, "pkill -f ipengineapp.py")
         user_ssh(master, user, "pkill -f ipcontrollerapp.py")
     
@@ -100,4 +120,18 @@ class IPClusterSetup(ClusterSetup):
         n = node.num_processors
         log.info("Adding %i engines on %s to ipcluster" % (n, node.alias))
         user_ssh(node, user, "source /etc/profile; ipcluster engines n=%i --daemonize" % n)
+
+class IPClusterStop(ClusterSetup):
+    
+    def run(self, nodes, master, user, user_shell, volumes):
+        log.info("Shutting down IPython cluster")
+        user_ssh(master, user, "ipcluster stop")
+        time.sleep(2)
+        # this are just to be sure, but they will probably do nothing
+        # except print errors
+        user_ssh(master, user, "pkill -f ipcontrollerapp.py")
+        for node in nodes:
+            user_ssh(master, user, "pkill -f ipengineapp.py")
+    
+        
 
