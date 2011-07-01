@@ -27,18 +27,13 @@ def threadedssh(nodes, cmd, join=True):
 class IPythonSetup(ClusterSetup):
     
     def install_packages(self, nodes, dest='all nodes'):
-        threadedssh(nodes, "test -d ~/src || mkdir ~/src")
-        log.info("Fetching IPython from github on %s"%dest)
+        log.info("Installing IPython master from github on %s"%dest)
         ipythons = threadedssh(nodes, """
         # get IPython from GitHub
+        test -d ~/src || mkdir ~/src
         cd src
         test -d ipython || git clone git://github.com/ipython/ipython.git
         cd ipython && git pull
-        cd
-        """, join=True)
-        log.info("Installing IPython master on %s"%dest)
-        threadedssh(nodes, """
-        cd ~/src/ipython
         python setupegg.py install
         """, join=True)
         
