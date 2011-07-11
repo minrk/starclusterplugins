@@ -85,7 +85,7 @@ class IPClusterSetup(ClusterSetup):
         # cleanup existing connection files, to prevent their use
         user_ssh(master, user, "rm -f %s/security/*.json"%profile_dir)
         user_ssh(master, user, """source /etc/profile;
-        ipcluster start n=%i delay=10 --daemonize
+        ipcluster start --n=%i --delay=5 --daemonize
         """%n
         )
         
@@ -119,7 +119,7 @@ class IPClusterSetup(ClusterSetup):
     def on_add_node(self, node, nodes, master, user, user_shell, volumes):
         n = node.num_processors
         log.info("Adding %i engines on %s to ipcluster" % (n, node.alias))
-        user_ssh(node, user, "source /etc/profile; ipcluster engines n=%i --daemonize" % n)
+        user_ssh(node, user, "source /etc/profile; ipcluster engines --n=%i --daemonize" % n)
 
 class IPClusterStop(ClusterSetup):
     
