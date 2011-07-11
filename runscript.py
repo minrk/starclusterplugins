@@ -43,17 +43,19 @@ class ScriptSetup(ClusterSetup):
             log.info(line)
         output = self.output
         if output:
-            if os.path.basename(output) == output:
-                user_home = master.getpwnam(user).pw_dir
-                output = posixpath.join(user_home, output)
-            log.info("retrieving output from %s"%output)
-            base = posixpath.basename(output)
-            dest = base
-            i=1
-            while os.path.exists(dest):
-                dest = "%s_%i"%(base,i)
-                i+=1
-            master.ssh.sftp.get(output, dest)
+            matches = user_ssh(master, user, "ls %s"%output)
+            user_home = master.getpwnam(user).pw_dir
+            for m in matches:
+                log.info("retrieving output from %s"%m)
+                base = posixpath.basename(m)
+                # from cwd
+                if base == m:
+                    src = posixpath.join(user_home, m)
+                    master.ssh.sftp.get(src, m)
+                else:
+                    # from abspath, into cwd
+                    master.ssh.sftp.get(m, base)
+        
         mins = (time.time()-tic)/60.
         log.info("Running script %s took %.2f mins"%(self.script, mins))
     
